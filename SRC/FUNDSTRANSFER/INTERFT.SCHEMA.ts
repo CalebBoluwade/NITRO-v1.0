@@ -11,9 +11,7 @@ export const FTSchema = object({
     CreditInstitutionCode: string(),
     AuthPIN: string().min(6).max(6).regex(/^\d+$/),
     Beneficiary: boolean(),
-    BVN: string().max(10).regex(/^\d+$/),
     Narration: string().max(100).nullish(),
-    SessionID: string().min(30),
     TransactionLocation: object({
       latitude: number(),
       longitude: number(),

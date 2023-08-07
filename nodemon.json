@@ -1,3 +1,4 @@
 {
-  "ext": ".js,.mjs,.json,.yaml,.ts"
+  "ext": ".js,.mjs,.json,.yaml,.ts",
+  "inspect": true
 }

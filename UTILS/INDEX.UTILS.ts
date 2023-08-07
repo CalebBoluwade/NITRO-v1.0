@@ -4,19 +4,32 @@ import pino from "pino";
 import path from "path";
 import jwt from "jsonwebtoken";
 
-const signJWT = (id: string, payload: any) => {
+const signAccessJWT = (id: string, payload: any) => {
   return jwt.sign(
     { userID: id, data: payload },
-    String(process.env.privateKey),
+    String(process.env.publicKey),
     {
-      expiresIn: "20m",
+      expiresIn: process.env.JWT_TIMEOUT,
     }
   );
 };
 
-const verifyJWT = (token: string) => {
+const signRefreshJWT = (id: string, payload: any) => {
+  return jwt.sign(
+    { userID: id, data: payload },
+    String(process.env.privateKey),
+    {
+      expiresIn: process.env.JWT_TIMEOUT,
+    }
+  );
+};
+
+const verifyJWT = (token: string, type: "access" | "refresh") => {
   try {
-    const decoded = jwt.verify(token, String(process.env.privateKey));
+    const decoded = jwt.verify(
+      token,
+      String(type === "access" ? process.env.publicKey : process.env.privateKey)
+    );
     return {
       valid: true,
       expired: false,
@@ -52,12 +65,12 @@ function customSerializer(obj: any): string {
   const message = obj.msg;
   const logObject = obj.object;
 
-  return `${level} ${message} ${JSON.stringify(logObject)}`;
+  return `${level} \t${message} \t${JSON.stringify(logObject)}\n`;
 }
 
 const Timestamp = () => {
-  const timestamp = new Date().toISOString();
-  return `,"time":[${timestamp}]`;
+  const timestamp = new Date().toUTCString();
+  return `,\t. "time":[${timestamp}]\t`;
 };
 
 const Logger = pino(
@@ -65,7 +78,8 @@ const Logger = pino(
     name: "NITRO LOGGER",
     stringify: false,
     timestamp: Timestamp,
-    msgPrefix: ">>> ",
+
+    // msgPrefix: ">>> ",
     messageKey: "MESSAGE",
     errorKey: "ERROR",
     // hooks: { logMethod: customSerializer },
@@ -83,7 +97,7 @@ const Logger = pino(
     dest: path.join(__dirname, `../LOGS/NITRO.log`), // omit for stdout
     // minLength: 2048, // Buffer before writing
     sync: true, // Asynchronous logging
-    // mkdir: true,
+    mkdir: true,
     fsync: true,
     maxWrite: 100000,
   })
@@ -94,8 +108,13 @@ const Encrpytor = (data: any) => {
   try {
     const encryptCipher = crpyto.createCipheriv("AES256", secretKey, iv);
     // encryptCipher.setAutoPadding(false);
-    let encrypted = encryptCipher.update(JSON.stringify(data), "utf8", "hex");
+    let encrypted = encryptCipher.update(
+      typeof data === "string" ? data : JSON.stringify(data),
+      "utf8",
+      "hex"
+    );
     encrypted += encryptCipher.final("hex");
+    // console.log(typeof data, data);
     return encrypted;
   } catch (error) {
     console.error(error);
@@ -155,6 +174,7 @@ export const UTILS = {
   GenerateOTP,
   GenerateFTRef,
   Logger,
-  signJWT,
+  signAccessJWT,
+  signRefreshJWT,
   verifyJWT,
 };

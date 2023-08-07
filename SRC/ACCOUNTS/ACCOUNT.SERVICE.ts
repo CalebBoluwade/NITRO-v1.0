@@ -7,19 +7,62 @@ import NITRO_RESPONSE from "../../HELPERS/RESPONSE.HELPER";
 import { ResponseMapping } from "../../UTILS/RESPONSE_MAPPING.UTILS";
 import { UTILS } from "../../UTILS/INDEX.UTILS";
 
-export const FetchUserAccountBalance = async () => {
-  const params = new URLSearchParams({
-    ["key"]: "value",
-  });
+export const FetchUserAccountBalance = async (accountNumber: string) => {
+  // const timeoutInterval = (Request as any).abortController.timeoutInterval;
 
-  // const accountData = await needle('get', `${BASE_URL}?${params}`)
-  const UserAccountInfo = await Promise.resolve({
-    id: "11111111",
-    acctBal: 50000,
-    acctStatus: "active",
-  });
+  // const timeoutInMillis = 10000; // 10 seconds (adjust as needed)
+  // const timeoutId = setTimeout(() => {
+  //   // This code will execute if the API call takes longer than the specified timeout
+  //   // Response.status(504).json({ error: 'Third-party API request timeout' });
+  //   return {
+  //     status: 504,
+  //     message: "Third-party API request timeout",
+  //     data: null,
+  //   };
+  // }, timeoutInMillis);
 
-  return UserAccountInfo;
+  // const ßAPI = axios÷
+
+  try {
+    const url = new URL("https://test.vup.com/api/v2/accounts");
+    url.searchParams.set("account", "65278987656");
+    const params = new URLSearchParams({
+      ["account"]: accountNumber,
+    });
+
+    // const accountData = await needle('get', `${BASE_URL}?${params}`)
+    const UserAccountInfo = await Promise.resolve({
+      customer_id: "11111111",
+      acctBal: 250000,
+      acctStatus: "Active",
+    });
+
+    // clearTimeout(timeoutInterval);
+    return {
+      status: 200,
+      message: "Successful",
+      data: UserAccountInfo,
+    };
+  } catch (e: any) {
+    // clearTimeout(timeoutInterval); // Clear the timeout if there's an error in the API call
+
+    if (e.name === "AbortError") {
+      // Request was aborted due to timeout
+      return {
+        status: 504,
+        message: "Third-party API request timeout",
+        data: null,
+      };
+    } else {
+      // Handle other errors from the third-party API or network issues
+
+      return {
+        status: 500,
+        message: "Error while calling third-party API",
+        data: null,
+      };
+    }
+  }
 };
 
 export const UserAccountBalance = async (
@@ -27,6 +70,7 @@ export const UserAccountBalance = async (
   Response: Response<ResponseSchema>
 ) => {
   try {
+    const timeoutInterval = (Request as any).abortController.timeoutInterval;
     const { accountNumber } = Request.params;
     const params = new URLSearchParams({
       ["account"]: accountNumber,

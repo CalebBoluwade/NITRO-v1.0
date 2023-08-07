@@ -7,11 +7,14 @@ import NITRO_RESPONSE from "../../HELPERS/RESPONSE.HELPER";
 import { ResponseMapping } from "../../UTILS/RESPONSE_MAPPING.UTILS";
 import { FetchUserAccountBalance } from "../ACCOUNTS/ACCOUNT.SERVICE";
 import crpyto from "crypto";
-// GET
+
 export const NAMEENQUIRY = async (
   Request: Request<NERequest>,
   Response: Response<ResponseSchema>
 ) => {
+  /**
+   * @GET
+   */
   const { accountNumber, bankCode } = Request.params;
   UTILS.Logger.info({ accountNumber, bankCode }, "NAME ENQUIRY REQUEST");
 
@@ -35,7 +38,19 @@ export const NAMEENQUIRY = async (
   }
 };
 
-// POST
+const InternalFT = async () => {};
+
+const ExternalFT = async () => {
+  return {
+    SessionID: "53789874667839405-876590-9876543",
+    status: ResponseMapping.SUCCESSFUL.MESSAGE,
+    code: ResponseMapping.SUCCESSFUL.CODE,
+  };
+};
+
+/**
+ * @POST
+ */
 const INTERFT = async (
   Request: Request<{}, {}, NewFTRequest>,
   Response: Response<ResponseSchema>
@@ -52,7 +67,6 @@ const INTERFT = async (
     Source,
     RequestID,
     Narration,
-    SessionID,
     AuthPIN,
     TransactionLocation,
   } = Request.body;
@@ -63,7 +77,7 @@ const INTERFT = async (
       [User.userID]
     );
 
-    if (USER.rowCount === 0) {
+    if (!USER.rowCount) {
       UTILS.Logger.warn("USER NOT FOUND");
       return NITRO_RESPONSE(Response, {
         status: ResponseMapping.INVALID_TRANSFER.MESSAGE,
@@ -102,16 +116,28 @@ const INTERFT = async (
             : UTILS.Encrypt(FailedAttempt.rows),
       });
     }
+
     // MAKE CALL TO FETCH ACCOUNT BALANCE
-    const { acctBal } = await FetchUserAccountBalance();
+    const accountData = (await FetchUserAccountBalance(USER.rows[0].acctnumber))
+      .data;
+
+    if (!accountData) {
+      return NITRO_RESPONSE(Response, {
+        status: ResponseMapping.SERVER_ERROR.MESSAGE,
+        statusCode: 504,
+        results: 0,
+        data: null,
+      });
+    }
 
     // ACCOUNT BALANCE CHECK
-    if (Amount > acctBal) {
+    if (Amount > accountData!.acctBal) {
       const NEW_TRANSACTION = await DatabaseClient.query(
-        "INSERT INTO NITRO_USER_TRANSACTIONS (RequestID, USERID, CUSTOMER_NAME, CRACCOUNTNO, DRACCOUNTNO, NARRACTION, AMOUNT, BANKCODE, REFERENCE_ID, SESSION_ID, STATUS, STATUSCODE, SOURCE, TransactionLocation) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *",
+        "INSERT INTO NITRO_USER_TRANSACTIONS (RequestID, USERID, T_TYPE, CUSTOMER_NAME, CRACCOUNTNO, DRACCOUNTNO, NARRACTION, AMOUNT, BANKCODE, REFERENCE_ID, SESSION_ID, STATUS, STATUSCODE, SOURCE, TransactionLocation) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *",
         [
           UTILS.GetUUID(),
           User.userID,
+          "NITRO_FT",
           CreditAccountName,
           CreditAccountNo,
           DebitAccountNo,
@@ -119,7 +145,7 @@ const INTERFT = async (
           Amount,
           CreditInstitutionCode,
           null,
-          SessionID,
+          null,
           ResponseMapping.INSUFFICIENT_FUNDS.MESSAGE,
           ResponseMapping.INSUFFICIENT_FUNDS.CODE,
           Source,
@@ -170,12 +196,14 @@ const INTERFT = async (
       )
     ) {
       // MAKE CALL TO PERFORM TRANSACTION
+      const ExFT = await ExternalFT();
       // IF TRANSACTION TIME GREATER THAN SET TIME OUT, SET TO PENDING AND DROP
       const NEW_TRANSACTION = await DatabaseClient.query(
-        "INSERT INTO NITRO_USER_TRANSACTIONS (RequestID, USERID, CUSTOMER_NAME, CRACCOUNTNO, DRACCOUNTNO, NARRACTION, AMOUNT, BANKCODE, REFERENCE_ID, SESSION_ID, STATUS, STATUSCODE, SOURCE, TransactionLocation) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *",
+        "INSERT INTO NITRO_USER_TRANSACTIONS (RequestID, USERID, T_TYPE, CUSTOMER_NAME, CRACCOUNTNO, DRACCOUNTNO, NARRACTION, AMOUNT, BANKCODE, REFERENCE_ID, SESSION_ID, STATUS, STATUSCODE, SOURCE, TransactionLocation) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *",
         [
           RequestID,
           User.userID,
+          "INTER_FT",
           CreditAccountName,
           CreditAccountNo,
           DebitAccountNo,
@@ -183,9 +211,9 @@ const INTERFT = async (
           Amount,
           CreditInstitutionCode,
           UTILS.GenerateFTRef(),
-          SessionID,
-          ResponseMapping.SUCCESSFUL.MESSAGE,
-          ResponseMapping.SUCCESSFUL.CODE,
+          ExFT.SessionID,
+          ExFT.status,
+          ExFT.code,
           Source,
           JSON.stringify(TransactionLocation) ?? null,
         ]

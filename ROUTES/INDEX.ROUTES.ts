@@ -7,6 +7,8 @@ import FundsTransferRouter from "../SRC/FUNDSTRANSFER/FUNDSTRANSER.ROUTES";
 import ValidateAPIUser from "../MIDDLEWARES/SESSION.MIDDLEWARE";
 import { UTILS } from "../UTILS/INDEX.UTILS";
 import AccountsRouter from "../SRC/ACCOUNTS/ACCOUNT.ROUTES";
+import ONETAPCARDRouter from "../SRC/CARD/ONETAP.ROUTES";
+import { ValidateOTCMerchant } from "../SRC/CARD/ONETAPNFC";
 
 export const Route = express.Router();
 
@@ -19,6 +21,12 @@ const ApplicationRouter = (Application: Application) => {
   userRouter(Route, ValidateAPIUser(UTILS.verifyJWT));
 
   AccountsRouter(Route, ValidateAPIUser(UTILS.verifyJWT));
+
+  ONETAPCARDRouter(
+    Route,
+    ValidateAPIUser(UTILS.verifyJWT),
+    ValidateOTCMerchant
+  );
 
   FundsTransferRouter(Route, ValidateAPIUser(UTILS.verifyJWT));
 };

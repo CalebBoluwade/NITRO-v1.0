@@ -18,13 +18,42 @@ import { UTILS } from "./UTILS/INDEX.UTILS";
 // import { RedisClient } from "./CONFIG/REDIS.CONFIG";
 import rateLimit from "express-rate-limit";
 // import slowDown from "express-slow-down";
-import { createClient } from "redis";
+// import { RedisClient } from "./CONFIG/REDIS.CONFIG";
+// import { createClient } from "redis";
 import { ResponseSchema } from "./SCHEMAS/ResponseSchema.schema";
 import NITRO_RESPONSE from "./HELPERS/RESPONSE.HELPER";
 
+import amqp from "amqplib";
+import { DatabaseMiddleware } from "./MIDDLEWARES/DATABASE.MIDDLEWARE";
+import { RedisClient } from "./CONFIG/REDIS.CONFIG";
+
+const queue = "nitro_nip_payments";
+const text = {
+  item_id: "macbook",
+  text: "This is a sample message to send receiver to check the ordered Item Availablility",
+};
+
+export const SendMessageQueue = async (queue: string, message: any) => {
+  //   let connection;
+  const connection = await amqp.connect("amqp://localhost");
+  try {
+    const channel = await connection.createChannel();
+
+    await channel.assertQueue(queue, { durable: false });
+    channel.sendToQueue(queue, Buffer.from(JSON.stringify(message)));
+    console.log(" [x] Sent '%s'", message);
+    await channel.close();
+  } catch (err) {
+    console.warn(err);
+  } finally {
+    if (connection) await connection.close();
+  }
+};
+
 export const NITRO_APP: Application = express();
 // Rate Limiting
-const limiter = rateLimit({
+
+const rateLimiter = rateLimit({
   windowMs: 10 * 60 * 5000,
   max: 35,
   handler: (
@@ -44,20 +73,18 @@ const limiter = rateLimit({
 
 // const slow = slowDown
 
-NITRO_APP.use(limiter);
+NITRO_APP.use(rateLimiter);
 NITRO_APP.set("trust proxy", 1);
-
-// NITRO_APP.use((req: Request, res: Response, next: NextFunction) => {
-//   const error: any = new Error("Not Found");
-//   error.status = 404;
-
-//   next({
-//     status: "INVALID ROUTE",
-//     statusCode: 404,
-//     results: 0,
-//     data: null,
-//   });
-// });
+NITRO_APP.use(express.urlencoded({ extended: true, limit: "50kb" }));
+NITRO_APP.use(express.json({ limit: "50kb" }));
+NITRO_APP.use(
+  compression({
+    level: 8,
+    threshold: 0,
+  })
+);
+NITRO_APP.use(responseTime());
+NITRO_APP.use(DatabaseMiddleware);
 
 NITRO_APP.use(helmet());
 NITRO_APP.use(
@@ -92,24 +119,31 @@ NITRO_APP.use(helmet.permittedCrossDomainPolicies());
 NITRO_APP.use(helmet.referrerPolicy());
 NITRO_APP.use(helmet.xssFilter());
 
-export const RedisClient = createClient({
-  url: "redis://127.0.0.1:6500",
-});
-
 RedisClient.on("connect", () => {
   UTILS.Logger.info("Connected to Redis");
 });
 
 RedisClient.on("error", (error) => {
   UTILS.Logger.error(error, "Redis error");
+  process.exitCode = 1;
 });
 
 const StartServer = async () => {
-  await RedisClient.connect();
+  console.log("ENVIRONMENT >>>", process.env.NODE_ENV);
+
+  try {
+    await RedisClient.connect();
+  } catch (error) {
+    console.error(error);
+    process.exitCode = 1;
+  }
+
+  // SendMessageQueue(queue, text);
 
   PGpool.connect((err) => {
     if (err) {
       UTILS.Logger.error(err, "Error connecting to database");
+      process.exitCode = 1;
     } else {
       UTILS.Logger.info("Connected to Postgres DB");
     }
@@ -127,27 +161,6 @@ StartServer();
 //   }
 // });
 
-const DatabaseMiddleware = (
-  Request: Request,
-  Response: Response,
-  next: NextFunction
-) => {
-  (Request as any).DatabaseClient = PGpool;
-  // (Request as any).RedisClient = RedisClient;
-  // Request.DatabaseClient = PGpool;
-  next();
-};
-
-NITRO_APP.use(express.urlencoded({ extended: true, limit: "50kb" }));
-NITRO_APP.use(express.json({ limit: "50kb" }));
-NITRO_APP.use(
-  compression({
-    level: 6,
-    threshold: 0,
-  })
-);
-NITRO_APP.use(responseTime());
-NITRO_APP.use(DatabaseMiddleware);
 // const remoteIP = ip.address();
 
 NITRO_APP.use((req: Request, res: Response, next: NextFunction) => {
@@ -164,7 +177,7 @@ NITRO_APP.use((req: Request, res: Response, next: NextFunction) => {
 export const ErrorHandler: ErrorRequestHandler = async (
   error,
   Request,
-  Response,
+  Response: Response<ResponseSchema>,
   Next
 ) => {
   try {
@@ -181,16 +194,19 @@ export const ErrorHandler: ErrorRequestHandler = async (
     UTILS.Logger.error(e);
   }
 
-  // Response.status(500).send("Internal Server Error");
-  Response.status(500).send({
-    message: "There was an internal server error. Please try again.",
+  return NITRO_RESPONSE(Response, {
+    statusCode: 500,
+    status: "There was an internal server error. Please try again.",
+    results: 0,
+    data: null,
   });
+  // Response.status(500).send("Internal Server Error");
   // Next();
 };
 // Define error-handling middleware
 
-NITRO_APP.use(ErrorHandler);
 NITRO_APP.use("/NITRO/API/V1", Route);
+NITRO_APP.use(ErrorHandler);
 
 ApplicationRouter(NITRO_APP);
 
@@ -202,19 +218,18 @@ const NITRO_SERVER = NITRO_APP.listen(5000, () => {
 // Graceful Shutdown
 ["SIGINT", "SIGTERM"].forEach((signal) => {
   process.on(signal, async () => {
+    console.log(PGpool.totalCount);
     await PGpool.end();
-    UTILS.Logger.info("NITRO IS BEEN SHUT DOWN...");
+    console.log(PGpool.totalCount);
+    // RedisClient.shutdown("SAVE");
+    UTILS.Logger.warn("NITRO IS BEEN SHUT DOWN...");
     setTimeout(() => {
       UTILS.Logger.info("NITRO TERMINATED...");
       NITRO_SERVER.close(() => {
         UTILS.Logger.info("NITRO HAS BEEN SHUT DOWN...");
       });
-      process.exit(0); // Terminate the application
-    }, 1000);
-    // RedisClient.shutdown("SAVE");
-    // console.warn("Server is gracefully shutting down...");
 
-    // NITRO_APP.close(async () => {
-    // })
+      process.exitCode = 1; // Terminate the application
+    }, 5000);
   });
 });

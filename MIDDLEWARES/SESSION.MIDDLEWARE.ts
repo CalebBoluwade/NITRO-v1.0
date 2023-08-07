@@ -12,7 +12,7 @@ interface JWTResponse {
 }
 
 const ValidateAPIUser =
-  (VerifyUser: (token: string) => JWTResponse) =>
+  (VerifyUser: (token: string, type: "access" | "refresh") => JWTResponse) =>
   (Request: Request, Response: Response, next: NextFunction): void => {
     const start = Date.now();
     try {
@@ -20,7 +20,7 @@ const ValidateAPIUser =
         /^Bearer\s/,
         ""
       );
-      const user = VerifyUser(accessToken);
+      const user = VerifyUser(accessToken, "access");
       // console.log(Request.body)
 
       const remoteIP = ip.address();
@@ -56,10 +56,10 @@ const ValidateAPIUser =
         !JSON.parse(process.env.AllowedSources!)?.includes(Request.body?.Source)
       ) {
         return NITRO_RESPONSE(Response, {
-          data: null,
-          results: 0,
           status: "Invalid Source",
           statusCode: 400,
+          data: null,
+          results: 0,
         });
       }
 
@@ -73,7 +73,8 @@ const ValidateAPIUser =
         //   "Request Accepted. Endpoint:",
         // );
 
-        Response.on("finish", () => {
+        Response.on("finish", (...data: any) => {
+          // console.log(data);
           const duration = Date.now() - start;
 
           Response.locals.requestCount = 0;

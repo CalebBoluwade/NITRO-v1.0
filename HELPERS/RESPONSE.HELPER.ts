@@ -7,6 +7,8 @@ const NITRO_RESPONSE = (
   ResponseData: ResponseSchema
 ) => {
   Response.status(ResponseData.statusCode).send(ResponseData);
+
+  return;
 };
 
 export default NITRO_RESPONSE;

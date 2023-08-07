@@ -10,12 +10,12 @@ import {
 } from "./USER.SCHEMA";
 import { UTILS } from "../../UTILS/INDEX.UTILS";
 import crpyto from "crypto";
+import { FetchUserAccountBalance } from "../ACCOUNTS/ACCOUNT.SERVICE";
 
 export const CreateNewUser = async (
   Request: Request<{}, {}, CreateUserRequest>,
   Response: Response<ResponseSchema>
 ) => {
-  // console.log("S",Request.body)
   try {
     const {
       email,
@@ -51,7 +51,10 @@ export const CreateNewUser = async (
       statusCode: ResponseMapping.SUCCESSFULLY_CREATED.SERVER,
       status: ResponseMapping.SUCCESSFULLY_CREATED.MESSAGE,
       results: NEW_USER.rowCount,
-      data: UTILS.Encrypt(NEW_USER.rows),
+      data:
+        process.env.NODE_ENV === "development"
+          ? NEW_USER.rows
+          : UTILS.Encrypt(NEW_USER.rows),
     });
   } catch (error: any) {
     UTILS.Logger.error([error], error.message);
@@ -79,18 +82,18 @@ export const CreateNewUser = async (
 
 export const UserLoginEmail = async (
   Request: Request<{}, {}, EmailAuthRequest>,
-  Response: Response
+  Response: Response<ResponseSchema>
 ) => {
   try {
     const DatabaseClient: Pool = (Request as any).DatabaseClient;
     const { email, password, ipaddress, appverion, device } = Request.body;
 
-    const USER: QueryResult<CreateUserRequest> = await DatabaseClient.query(
-      "SELECT CUSTOMER_NAME, EMAIL, PASSWORD, USERID, STATUS, PHONENUMBER, USERPUSHID, DEVICE, APPVERSION FROM NITRO_USERS WHERE EMAIL = $1",
+    const USER: QueryResult = await DatabaseClient.query(
+      "SELECT CUSTOMER_NAME, EMAIL, PASSWORD, USERID, ACCTNUMBER, STATUS, PHONENUMBER, USERPUSHID, DEVICE, APPVERSION FROM NITRO_USERS WHERE EMAIL = $1",
       [email]
     );
 
-    if (USER.rowCount === 0) {
+    if (!USER.rowCount) {
       return NITRO_RESPONSE(Response, {
         statusCode: ResponseMapping.INCORRECT_LOGIN_EMAIL.SERVER,
         status: ResponseMapping.INCORRECT_LOGIN_EMAIL.MESSAGE,
@@ -112,6 +115,7 @@ export const UserLoginEmail = async (
     //   UTILS.Decrypt(USER.rows[0]?.password)
     // );
     // let decryptedPWD = String(UTILS.Decrypt(USER.rows[0]?.password))
+
     if (UTILS.Decrypt(USER.rows[0]?.password) !== password) {
       UTILS.Logger.warn(`INCORRECT PASSWORD. ${USER.rows[0].customer_name}`);
       const FailedAttempt = await DatabaseClient.query(
@@ -142,9 +146,25 @@ export const UserLoginEmail = async (
         [USER.rows[0]?.userid, ipaddress]
       );
 
-      const Token = UTILS.signJWT(USER.rows[0].userid!, {
+      const accountData = (
+        await FetchUserAccountBalance(USER.rows[0].acctnumber)
+      ).data;
+
+      const AToken = UTILS.signAccessJWT(USER.rows[0].userid!, {
         device: USER.rows[0].device,
         pushid: USER.rows[0].userpushid,
+      });
+
+      const RToken = UTILS.signRefreshJWT(USER.rows[0].userid!, {
+        device: USER.rows[0].device,
+        pushid: USER.rows[0].userpushid,
+      });
+
+      Response.cookie("SL", AToken, {
+        httpOnly: true,
+        // signed: true,
+        secure: true,
+        maxAge: 12 * 60 * 60 * 1000,
       });
 
       return NITRO_RESPONSE(Response, {
@@ -153,8 +173,22 @@ export const UserLoginEmail = async (
         results: USER.rowCount,
         data:
           process.env.NODE_ENV === "development"
-            ? [{ ...USER.rows[0], token: Token }]
-            : UTILS.Encrypt([{ ...USER.rows[0], token: Token }]),
+            ? [
+                {
+                  ...USER.rows[0],
+                  account: accountData,
+                  accessToken: AToken,
+                  refreshToken: RToken,
+                },
+              ]
+            : UTILS.Encrypt([
+                {
+                  ...USER.rows[0],
+                  account: accountData,
+                  accessToken: AToken,
+                  refreshToken: RToken,
+                },
+              ]),
       });
     }
   } catch (error: any) {
