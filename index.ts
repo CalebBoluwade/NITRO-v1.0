@@ -23,7 +23,7 @@ import rateLimit from "express-rate-limit";
 import { ResponseSchema } from "./SCHEMAS/ResponseSchema.schema";
 import NITRO_RESPONSE from "./HELPERS/RESPONSE.HELPER";
 
-import amqp from "amqplib";
+// import amqp from "amqplib";
 import { DatabaseMiddleware } from "./MIDDLEWARES/DATABASE.MIDDLEWARE";
 import { RedisClient } from "./CONFIG/REDIS.CONFIG";
 
@@ -33,22 +33,22 @@ const text = {
   text: "This is a sample message to send receiver to check the ordered Item Availablility",
 };
 
-export const SendMessageQueue = async (queue: string, message: any) => {
-  //   let connection;
-  const connection = await amqp.connect("amqp://localhost");
-  try {
-    const channel = await connection.createChannel();
+// export const SendMessageQueue = async (queue: string, message: any) => {
+//   //   let connection;
+//   const connection = await amqp.connect("amqp://localhost");
+//   try {
+//     const channel = await connection.createChannel();
 
-    await channel.assertQueue(queue, { durable: false });
-    channel.sendToQueue(queue, Buffer.from(JSON.stringify(message)));
-    console.log(" [x] Sent '%s'", message);
-    await channel.close();
-  } catch (err) {
-    console.warn(err);
-  } finally {
-    if (connection) await connection.close();
-  }
-};
+//     await channel.assertQueue(queue, { durable: false });
+//     channel.sendToQueue(queue, Buffer.from(JSON.stringify(message)));
+//     console.log(" [x] Sent '%s'", message);
+//     await channel.close();
+//   } catch (err) {
+//     console.warn(err);
+//   } finally {
+//     if (connection) await connection.close();
+//   }
+// };
 
 export const NITRO_APP: Application = express();
 // Rate Limiting
