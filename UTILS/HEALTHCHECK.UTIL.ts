@@ -46,6 +46,7 @@ const HealthCheck = async (
           },
           cpu: os.cpus(),
           loadavg: os.loadavg(),
+          rss: process.memoryUsage().rss,
         },
       ],
     });

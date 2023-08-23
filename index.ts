@@ -216,7 +216,25 @@ const NITRO_SERVER = NITRO_APP.listen(5000, () => {
 });
 
 // Graceful Shutdown
-["SIGINT", "SIGTERM"].forEach((signal) => {
+["SIGTERM"].forEach((signal) => {
+  process.on(signal, async () => {
+    console.log(PGpool.totalCount);
+    await PGpool.end();
+    console.log(PGpool.totalCount);
+    // RedisClient.shutdown("SAVE");
+    UTILS.Logger.warn("NITRO IS BEEN SHUT DOWN...");
+    setTimeout(() => {
+      UTILS.Logger.info("NITRO TERMINATED...");
+      NITRO_SERVER.close(() => {
+        UTILS.Logger.info("NITRO HAS BEEN SHUT DOWN...");
+      });
+
+      process.exitCode = 1; // Terminate the application
+    }, 5000);
+  });
+});
+
+["SIGINT"].forEach((signal) => {
   process.on(signal, async () => {
     console.log(PGpool.totalCount);
     await PGpool.end();
