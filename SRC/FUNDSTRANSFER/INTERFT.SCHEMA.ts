@@ -2,7 +2,7 @@ import { object, string, number, TypeOf, boolean } from "zod";
 
 export const FTSchema = object({
   body: object({
-    Amount: number(),
+    Amount: number().nonnegative(),
     RequestID: string().uuid(),
     Source: string().max(11),
     DebitAccountNo: string().min(10).max(11).regex(/^\d+$/),

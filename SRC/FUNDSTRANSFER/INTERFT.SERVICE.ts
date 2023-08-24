@@ -26,7 +26,10 @@ export const NAMEENQUIRY = async (
       status: ResponseMapping.SUCCESSFUL.MESSAGE,
       statusCode: ResponseMapping.SUCCESSFUL.SERVER,
       results: 0,
-      data: process.env.NODE_ENV === "development" ? [] : UTILS.Encrypt([]),
+      data:
+        process.env.NODE_ENV === "development" || "test"
+          ? []
+          : UTILS.Encrypt([]),
     });
   } catch (error) {
     return NITRO_RESPONSE(Response, {
@@ -111,7 +114,7 @@ const INTERFT = async (
         statusCode: ResponseMapping.INCORRECT_TPIN.SERVER,
         results: FailedAttempt.rowCount,
         data:
-          process.env.NODE_ENV === "development"
+          process.env.NODE_ENV === "development" || "test"
             ? FailedAttempt.rows
             : UTILS.Encrypt(FailedAttempt.rows),
       });
@@ -160,7 +163,7 @@ const INTERFT = async (
         statusCode: ResponseMapping.INSUFFICIENT_FUNDS.SERVER,
         results: NEW_TRANSACTION.rowCount,
         data:
-          process.env.NODE_ENV === "development"
+          process.env.NODE_ENV === "development" || "test"
             ? NEW_TRANSACTION.rows
             : UTILS.Encrypt(NEW_TRANSACTION.rows),
       });
@@ -249,7 +252,7 @@ const INTERFT = async (
         statusCode: ResponseMapping.SUCCESSFUL.SERVER,
         results: NEW_TRANSACTION.rowCount,
         data:
-          process.env.NODE_ENV === "development"
+          process.env.NODE_ENV === "development" || "test"
             ? NEW_TRANSACTION.rows
             : UTILS.Encrypt(NEW_TRANSACTION.rows),
       });

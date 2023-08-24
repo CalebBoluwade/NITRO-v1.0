@@ -52,7 +52,7 @@ export const CreateNewUser = async (
       status: ResponseMapping.SUCCESSFULLY_CREATED.MESSAGE,
       results: NEW_USER.rowCount,
       data:
-        process.env.NODE_ENV === "development"
+        process.env.NODE_ENV === "development" || "test"
           ? NEW_USER.rows
           : UTILS.Encrypt(NEW_USER.rows),
     });
@@ -128,7 +128,7 @@ export const UserLoginEmail = async (
         status: ResponseMapping.INCORRECT_LOGIN_EMAIL.MESSAGE,
         results: FailedAttempt.rowCount,
         data:
-          process.env.NODE_ENV === "development"
+          process.env.NODE_ENV === "development" || "test"
             ? FailedAttempt.rows
             : UTILS.Encrypt(FailedAttempt.rows),
       });
@@ -172,7 +172,7 @@ export const UserLoginEmail = async (
         status: ResponseMapping.SUCCESSFUL.MESSAGE,
         results: USER.rowCount,
         data:
-          process.env.NODE_ENV === "development"
+          process.env.NODE_ENV === "development" || "test"
             ? [
                 {
                   ...USER.rows[0],
@@ -200,7 +200,9 @@ export const UserLoginEmail = async (
       status: ResponseMapping.SERVER_ERROR.MESSAGE,
       results: 0,
       data:
-        process.env.NODE_ENV === "development" ? JSON.stringify([error]) : null,
+        process.env.NODE_ENV === "development" || "test"
+          ? JSON.stringify([error])
+          : null,
     });
   }
 };
